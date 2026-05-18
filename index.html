@@ -1018,7 +1018,7 @@
                 if (lim > 0 && history.length >= lim) { showToast('Limit reached!', 'danger'); return; }
             }
             history.push({ value: num, timestamp: nowTime() });
-            if (history.length > 88) {
+            if (history.length > 8888) {
                 history.splice(0, 32);
                 showToast('🧹 Auto‑cleaned 32 oldest entries', 'info');
             }
