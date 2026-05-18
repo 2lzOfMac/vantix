@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algorithm Predictor • Probabilistic Engine</title>
+    <style>
+        :root {
+            --bg-deep: #06060f;
+            --bg-card: #0d0d1a;
+            --bg-card2: #111122;
+            --bg-input: #0a0a16;
+            --text-primary: #e8e8f0;
+            --text-secondary: #a0a0bb;
+            --text-muted: #6a6a80;
+            --accent-cyan: #00d4ff;
+            --accent-cyan-glow: #00d4ff66;
+            --accent-magenta: #ff2d78;
+            --accent-magenta-glow: #ff2d7866;
+            --accent-purple: #9b5fff;
+            --accent-purple-glow: #9b5fff55;
+            --accent-gold: #ffb347;
+            --accent-gold-glow: #ffb34755;
+            --accent-green: #3dfcb4;
+            --accent-green-glow: #3dfcb455;
+            --border-subtle: #1e1e35;
+            --border-glow: #2a2a48;
+            --danger: #ff4458;
+            --danger-glow: #ff445866;
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', 'Monaco', monospace;
+            --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-bounce: 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-deep);
+            font-family: var(--font-sans);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+            position: relative;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        #particleCanvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.45;
+        }
+
+        .app-container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 640px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .app-header { text-align: center; padding: 8px 0; }
+        .app-title {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, var(--accent-cyan), #8ebfff, var(--accent-purple));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 18px var(--accent-purple-glow));
+            animation: titleShimmer 4s ease-in-out infinite;
+            user-select: none;
+        }
+        @keyframes titleShimmer {
+            0%, 100% { filter: drop-shadow(0 0 18px var(--accent-purple-glow)); }
+            50% { filter: drop-shadow(0 0 28px var(--accent-cyan-glow)); }
+        }
+        .app-subtitle {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-top: 2px;
+            user-select: none;
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .stat-pill {
+            background: var(--bg-card2);
+            border: 1px solid var(--border-subtle);
+            border-radius: 50px;
+            padding: 8px 16px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            transition: all var(--transition-smooth);
+            user-select: none;
+            white-space: nowrap;
+        }
+        .stat-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .trend-up { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green-glow); }
+        .trend-down { background: var(--accent-magenta); box-shadow: 0 0 8px var(--accent-magenta-glow); }
+        .trend-flat { background: var(--accent-gold); box-shadow: 0 0 8px var(--accent-gold-glow); }
+        .stat-value {
+            font-weight: 700;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 20px 22px;
+            position: relative;
+            overflow: hidden;
+            transition: all var(--transition-smooth);
+            backdrop-filter: blur(6px);
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: radial-gradient(ellipse at center, transparent 60%, rgba(0,180,255,0.012) 100%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .card > * { position: relative; z-index: 1; }
+        .glow-cyan {
+            border-color: var(--accent-cyan-glow);
+            box-shadow: 0 0 30px rgba(0,200,255,0.07), inset 0 0 30px rgba(0,200,255,0.015);
+        }
+        .glow-magenta {
+            border-color: var(--accent-magenta-glow);
+            box-shadow: 0 0 30px rgba(255,45,120,0.07), inset 0 0 30px rgba(255,45,120,0.015);
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            flex: 1;
+            min-width: 120px;
+        }
+        .input-group label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        .input-group input {
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 11px 14px;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            outline: none;
+            transition: all var(--transition-fast);
+            width: 100%;
+        }
+        .input-group input:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 16px var(--accent-cyan-glow);
+        }
+        .input-group input:disabled { opacity: 0.4; cursor: not-allowed; }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-top: 20px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .checkbox-group input[type="checkbox"] {
+            accent-color: var(--accent-cyan);
+            width: 18px; height: 18px;
+            cursor: pointer;
+        }
+        .checkbox-group span { font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
+
+        .btn {
+            padding: 11px 20px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.82rem;
+            letter-spacing: 0.03em;
+            cursor: pointer;
+            border: none;
+            outline: none;
+            transition: all var(--transition-bounce);
+            position: relative;
+            overflow: hidden;
+            font-family: var(--font-sans);
+            white-space: nowrap;
+            user-select: none;
+        }
+        .btn:active { transform: scale(0.94); }
+        .btn-primary {
+            background: linear-gradient(135deg, #0090cc, #00b8f0);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(0,180,240,0.3);
+            font-size: 0.88rem;
+            padding: 12px 26px;
+        }
+        .btn-primary:hover { box-shadow: 0 6px 28px rgba(0,200,255,0.45); transform: translateY(-2px); }
+        .btn-primary:disabled { background: #333; box-shadow: none; cursor: not-allowed; opacity: 0.5; transform: none; }
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border-glow);
+            color: var(--text-secondary);
+        }
+        .btn-secondary:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); box-shadow: 0 0 14px var(--accent-cyan-glow); }
+        .btn-secondary.active { border-color: var(--accent-cyan); color: var(--accent-cyan); background: rgba(0,200,255,0.06); }
+        .btn-danger {
+            background: transparent;
+            border: 1px solid var(--danger-glow);
+            color: var(--danger);
+        }
+        .btn-danger:hover { background: rgba(255,68,88,0.1); box-shadow: 0 0 18px var(--danger-glow); }
+        .btn-edit {
+            background: transparent;
+            border: 1px solid var(--accent-gold-glow);
+            color: var(--accent-gold);
+        }
+        .btn-edit:hover { background: rgba(255,179,71,0.08); box-shadow: 0 0 16px var(--accent-gold-glow); }
+        .btn-edit.active { background: rgba(255,179,71,0.12); border-color: var(--accent-gold); box-shadow: 0 0 20px var(--accent-gold-glow); }
+        .btn-sm { padding: 6px 14px; font-size: 0.7rem; border-radius: 20px; }
+        .btn-xs { padding: 3px 9px; font-size: 0.65rem; border-radius: 14px; }
+
+        .prediction-card {
+            text-align: center;
+            padding: 28px 20px 24px;
+        }
+        .prediction-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        .prediction-value {
+            font-size: 4.8rem;
+            font-weight: 900;
+            font-family: var(--font-mono);
+            letter-spacing: -0.03em;
+            background: linear-gradient(180deg, #ffffff 0%, #c0d0ff 60%, #8090dd 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 35px rgba(180,200,255,0.75));
+            animation: predictionGlow 2.5s ease-in-out infinite;
+            line-height: 1;
+        }
+        @keyframes predictionGlow {
+            0%, 100% { filter: drop-shadow(0 0 35px rgba(180,200,255,0.75)); }
+            50% { filter: drop-shadow(0 0 55px rgba(200,220,255,0.95)); }
+        }
+        .no-prediction {
+            font-size: 1.3rem;
+            font-weight: 500;
+            background: none;
+            -webkit-text-fill-color: var(--text-muted);
+            filter: none;
+            animation: none;
+            letter-spacing: 0;
+            font-family: var(--font-sans);
+        }
+        .probability-badge {
+            display: inline-block;
+            background: rgba(0,212,255,0.12);
+            border: 1px solid var(--accent-cyan-glow);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 0.7rem;
+            color: var(--accent-cyan);
+            margin-top: 6px;
+            letter-spacing: 0.04em;
+            font-weight: 600;
+        }
+        .confidence-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .confidence-bar-outer {
+            width: 130px;
+            height: 5px;
+            background: #1a1a2e;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .confidence-bar-inner {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1), background 0.4s ease;
+        }
+        .confidence-text { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; }
+        .progress-to-prediction { font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; }
+        .progress-to-prediction span { color: var(--accent-cyan); font-weight: 700; }
+
+        .sparkline-container { display: flex; justify-content: center; padding: 4px 0; }
+        .sparkline-line {
+            fill: none;
+            stroke: var(--accent-cyan);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            filter: drop-shadow(0 0 6px var(--accent-cyan-glow));
+            transition: all 0.5s ease;
+        }
+        .sparkline-dot { fill: #fff; filter: drop-shadow(0 0 5px rgba(255,255,255,0.8)); }
+
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .history-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+        .history-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 4px;
+            scroll-behavior: smooth;
+        }
+        .history-list::-webkit-scrollbar { width: 4px; }
+        .history-list::-webkit-scrollbar-track { background: transparent; border-radius: 10px; }
+        .history-list::-webkit-scrollbar-thumb { background: #2a2a45; border-radius: 10px; }
+        .history-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 14px;
+            background: var(--bg-card2);
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            transition: all var(--transition-fast);
+            animation: slideIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+        .history-item:hover { border-color: var(--border-glow); background: #15152a; }
+        .history-item.editable { cursor: pointer; border-color: rgba(255,179,71,0.35); }
+        .history-item.editable:hover { border-color: var(--accent-gold); box-shadow: 0 0 12px var(--accent-gold-glow); background: #1a1a25; }
+        .history-item.selected-for-edit { border-color: var(--accent-gold) !important; box-shadow: 0 0 18px var(--accent-gold-glow) !important; background: #1e1a20 !important; }
+        .history-index { font-size: 0.62rem; color: var(--text-muted); font-family: var(--font-mono); min-width: 28px; text-align: right; user-select: none; }
+        .history-value { font-family: var(--font-mono); font-weight: 700; font-size: 1rem; color: var(--text-primary); flex: 1; }
+        .history-time { font-size: 0.6rem; color: var(--text-muted); user-select: none; white-space: nowrap; }
+        .history-actions { display: flex; gap: 4px; opacity: 0; transition: opacity var(--transition-fast); flex-shrink: 0; }
+        .history-item.editable .history-actions, .history-item:hover .history-actions { opacity: 1; }
+        .btn-inline-edit {
+            background: rgba(255,179,71,0.15);
+            border: 1px solid rgba(255,179,71,0.4);
+            color: var(--accent-gold);
+            padding: 3px 8px;
+            font-size: 0.6rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            font-weight: 600;
+        }
+        .btn-inline-edit:hover { background: rgba(255,179,71,0.3); box-shadow: 0 0 10px var(--accent-gold-glow); }
+        .btn-inline-delete {
+            background: rgba(255,68,88,0.12);
+            border: 1px solid rgba(255,68,88,0.35);
+            color: var(--danger);
+            padding: 3px 8px;
+            font-size: 0.6rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            font-weight: 600;
+        }
+        .btn-inline-delete:hover { background: rgba(255,68,88,0.28); box-shadow: 0 0 10px var(--danger-glow); }
+
+        .button-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            animation: modalPop 0.35s cubic-bezier(0.34,1.56,0.64,1);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        }
+        @keyframes modalPop { from { opacity: 0; transform: scale(0.85) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .modal h3 { font-size: 1.2rem; margin-bottom: 8px; }
+        .modal p { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 18px; line-height: 1.5; }
+        .modal .btn-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .modal input {
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 1.1rem;
+            outline: none;
+            width: 100%;
+            text-align: center;
+            margin-bottom: 14px;
+            transition: all var(--transition-fast);
+        }
+        .modal input:focus { border-color: var(--accent-cyan); box-shadow: 0 0 14px var(--accent-cyan-glow); }
+
+        .toast-container {
+            position: fixed;
+            top: 20px; right: 20px;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .toast {
+            padding: 10px 18px;
+            border-radius: 50px;
+            font-size: 0.76rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            animation: toastIn 0.4s cubic-bezier(0.34,1.56,0.64,1), toastOut 0.3s ease 2.2s forwards;
+            pointer-events: auto;
+            backdrop-filter: blur(8px);
+            white-space: nowrap;
+        }
+        .toast-info { background: rgba(0,180,240,0.2); border: 1px solid var(--accent-cyan-glow); color: var(--accent-cyan); }
+        .toast-success { background: rgba(60,252,180,0.15); border: 1px solid var(--accent-green-glow); color: var(--accent-green); }
+        .toast-warning { background: rgba(255,179,71,0.15); border: 1px solid var(--accent-gold-glow); color: var(--accent-gold); }
+        .toast-danger { background: rgba(255,68,88,0.18); border: 1px solid var(--danger-glow); color: var(--danger); }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(60px); } }
+
+        @media (max-width: 500px) {
+            .prediction-value { font-size: 3.2rem; }
+            .prediction-value.no-prediction { font-size: 1.1rem; }
+            .app-title { font-size: 1.5rem; }
+            .input-row { flex-direction: column; }
+            .btn { font-size: 0.76rem; padding: 9px 16px; }
+            .btn-primary { padding: 10px 20px; }
+            .card { padding: 14px 16px; }
+            .stat-pill { font-size: 0.68rem; padding: 6px 12px; }
+        }
+    </style>
+</head>
+<body>
+<canvas id="particleCanvas"></canvas>
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="app-container">
+    <header class="app-header">
+        <h1 class="app-title">Algorithm Predictor</h1>
+        <p class="app-subtitle">Probabilistic Sequence Analysis</p>
+    </header>
+
+    <div class="stats-row">
+        <div class="stat-pill"><span>📊 Count:</span><span class="stat-value" id="statCount">0</span></div>
+        <div class="stat-pill"><span>📈 Median:</span><span class="stat-value" id="statMedian">—</span></div>
+        <div class="stat-pill"><span>🎯 Mode:</span><span class="stat-value" id="statMode">—</span></div>
+        <div class="stat-pill"><span>📐 StdDev:</span><span class="stat-value" id="statStd">—</span></div>
+        <div class="stat-pill"><span>Entropy:</span><span class="stat-value" id="statEntropy">—</span></div>
+    </div>
+
+    <div class="card glow-cyan">
+        <div class="input-row">
+            <div class="input-group">
+                <label for="numberInput">Number (≥1.00)</label>
+                <input type="number" id="numberInput" step="0.01" min="1.00" placeholder="e.g. 3.14" autocomplete="off">
+            </div>
+            <div class="input-group" style="max-width:130px;">
+                <label for="limitInput">Upper Bound</label>
+                <input type="number" id="limitInput" min="1" step="1" placeholder="Max" disabled>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="infinityCheckbox" checked>
+                <span>∞ No bound</span>
+            </div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button class="btn btn-primary" id="submitBtn">🚀 Submit</button>
+            <span id="limitStatus" style="font-size:0.68rem;color:var(--text-muted);"></span>
+        </div>
+    </div>
+
+    <div class="card glow-magenta prediction-card">
+        <div class="prediction-label">🔮 Most Probable Next Value</div>
+        <div class="prediction-value no-prediction" id="predictionValue">Need 16 submissions</div>
+        <div class="probability-badge" id="probabilityBadge" style="display:none;">P = <span id="probValue">0</span>%</div>
+        <div class="progress-to-prediction" id="progressText">
+            <span id="progressCount">0</span>/16 submissions for first prediction
+        </div>
+        <div class="confidence-row" id="confidenceRow" style="display:none;">
+            <span class="confidence-text">Confidence</span>
+            <div class="confidence-bar-outer">
+                <div class="confidence-bar-inner" id="confidenceBar" style="width:0%;background:var(--accent-green);"></div>
+            </div>
+            <span class="confidence-text" id="confidencePercent">0%</span>
+        </div>
+        <div class="sparkline-container" id="sparklineContainer" style="display:none;">
+            <svg id="sparklineSvg" width="280" height="50" viewBox="0 0 280 50"></svg>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="history-header">
+            <span class="history-title">📋 Submission History</span>
+            <span style="font-size:0.62rem;color:var(--text-muted);" id="historyRangeLabel">Showing latest 10</span>
+        </div>
+        <ul class="history-list" id="historyList">
+            <li style="text-align:center;color:var(--text-muted);padding:30px 0;font-size:0.85rem;">No submissions yet.</li>
+        </ul>
+        <div class="button-row" style="margin-top:12px;">
+            <button class="btn btn-secondary btn-sm" id="viewToggleBtn">🔍 View Latest 32</button>
+            <button class="btn btn-edit btn-sm" id="editToggleBtn">✏️ Edit Mode</button>
+            <button class="btn btn-danger btn-sm" id="clearBtn">🗑 Clear All</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="editModal" style="display:none;">
+    <div class="modal">
+        <h3>✏️ Edit Submission</h3>
+        <p>New value for <strong id="editModalIndex">#0</strong></p>
+        <input type="number" id="editModalInput" step="0.01" min="1.00" placeholder="New value">
+        <div class="btn-row">
+            <button class="btn btn-primary btn-sm" id="editModalSave">💾 Save</button>
+            <button class="btn btn-secondary btn-sm" id="editModalCancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="confirmModal" style="display:none;">
+    <div class="modal">
+        <h3>⚠️ Clear All History?</h3>
+        <p>This will erase <strong id="confirmCount">all</strong> submissions.</p>
+        <div class="btn-row">
+            <button class="btn btn-danger" id="confirmYes">🗑 Yes, Clear All</button>
+            <button class="btn btn-secondary" id="confirmNo">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (() => {
+        // ─────────────────── DOM ───────────────────
+        const numberInput = document.getElementById('numberInput');
+        const limitInput = document.getElementById('limitInput');
+        const infinityCheckbox = document.getElementById('infinityCheckbox');
+        const submitBtn = document.getElementById('submitBtn');
+        const limitStatus = document.getElementById('limitStatus');
+        const predictionValue = document.getElementById('predictionValue');
+        const progressText = document.getElementById('progressText');
+        const progressCount = document.getElementById('progressCount');
+        const confidenceRow = document.getElementById('confidenceRow');
+        const confidenceBar = document.getElementById('confidenceBar');
+        const confidencePercent = document.getElementById('confidencePercent');
+        const probabilityBadge = document.getElementById('probabilityBadge');
+        const probValue = document.getElementById('probValue');
+        const sparklineContainer = document.getElementById('sparklineContainer');
+        const sparklineSvg = document.getElementById('sparklineSvg');
+        const historyList = document.getElementById('historyList');
+        const historyRangeLabel = document.getElementById('historyRangeLabel');
+        const viewToggleBtn = document.getElementById('viewToggleBtn');
+        const editToggleBtn = document.getElementById('editToggleBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const statCount = document.getElementById('statCount');
+        const statMedian = document.getElementById('statMedian');
+        const statMode = document.getElementById('statMode');
+        const statStd = document.getElementById('statStd');
+        const statEntropy = document.getElementById('statEntropy');
+        const toastContainer = document.getElementById('toastContainer');
+        const editModal = document.getElementById('editModal');
+        const editModalIndex = document.getElementById('editModalIndex');
+        const editModalInput = document.getElementById('editModalInput');
+        const editModalSave = document.getElementById('editModalSave');
+        const editModalCancel = document.getElementById('editModalCancel');
+        const confirmModal = document.getElementById('confirmModal');
+        const confirmCount = document.getElementById('confirmCount');
+        const confirmYes = document.getElementById('confirmYes');
+        const confirmNo = document.getElementById('confirmNo');
+
+        // ─────────────────── STATE ───────────────────
+        let history = [];
+        let isViewing32 = false;
+        let isEditMode = false;
+        let editTargetGlobalIndex = null;
+
+        // ─────────────────── PARTICLES ───────────────────
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        function resizeCanvas() { canvas.width = innerWidth;
+            canvas.height = innerHeight; }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        class Particle {
+            constructor() { this.reset();
+                this.y = Math.random() * canvas.height; }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = -10 - Math.random() * 60;
+                this.size = Math.random() * 2 + 0.6;
+                this.speedY = Math.random() * 0.35 + 0.15;
+                this.speedX = (Math.random() - 0.5) * 0.2;
+                this.opacity = Math.random() * 0.5 + 0.15;
+            }
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX;
+                if (this.y > canvas.height + 15 || this.x < -15 || this.x > canvas.width + 15) this.reset();
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(210,70%,65%,${this.opacity})`;
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 2.2, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(210,70%,65%,${this.opacity*0.2})`;
+                ctx.fill();
+            }
+        }
+        for (let i = 0; i < 55; i++) { let p = new Particle();
+            p.y = Math.random() * canvas.height;
+            particles.push(p); }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => { p.update();
+                p.draw(); });
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        // ─────────────────── TOAST ───────────────────
+        function showToast(msg, type = 'info') {
+            const t = document.createElement('div');
+            t.className = `toast toast-${type}`;
+            t.textContent = msg;
+            toastContainer.appendChild(t);
+            setTimeout(() => t.remove(), 2600);
+        }
+
+        // ─────────────────── UTILS ───────────────────
+        const fmt = v => Number(v).toFixed(2);
+        const nowTime = () => new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit',
+            second: '2-digit' });
+
+        function getVisibleRange() {
+            const total = history.length;
+            if (!total) return { items: [] };
+            const count = isViewing32 ? Math.min(32, total) : Math.min(10, total);
+            const start = total - count;
+            return {
+                items: history.slice(start).map((h, i) => ({ ...h, globalIndex: start + i, displayIndex: i + 1 }))
+                    .reverse()
+            };
+        }
+
+        // ─────────────────── PROBABILISTIC PREDICTION ENGINE ───────────────────
+        function calculatePrediction() {
+            const values = history.map(h => h.value);
+            const n = values.length;
+            if (n < 3) return { prediction: null, confidence: 0, probability: 0 };
+
+            // 1. Compute basic statistics
+            const sorted = [...values].sort((a, b) => a - b);
+            const median = n % 2 === 1 ? sorted[Math.floor(n / 2)] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+            const mean = values.reduce((s, v) => s + v, 0) / n;
+            const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
+            const stdDev = Math.sqrt(variance);
+
+            // 2. Frequency distribution (histogram) with adaptive binning
+            const binCount = Math.min(20, Math.max(5, Math.floor(Math.sqrt(n) * 1.5)));
+            const minVal = sorted[0];
+            const maxVal = sorted[n - 1];
+            const range = maxVal - minVal || 1;
+            const binWidth = range / binCount;
+            const bins = Array.from({ length: binCount }, (_, i) => ({
+                min: minVal + i * binWidth,
+                max: minVal + (i + 1) * binWidth,
+                count: 0,
+                center: minVal + (i + 0.5) * binWidth,
+            }));
+            values.forEach(v => {
+                let idx = Math.min(binCount - 1, Math.floor((v - minVal) / binWidth));
+                if (idx < 0) idx = 0;
+                bins[idx].count++;
+            });
+
+            // 3. Kernel Density Estimation (Gaussian KDE)
+            // Bandwidth using Silverman's rule
+            const bandwidth = 1.06 * stdDev * Math.pow(n, -0.2);
+            function kdeDensity(x) {
+                let density = 0;
+                for (const v of values) {
+                    const u = (x - v) / bandwidth;
+                    density += Math.exp(-0.5 * u * u) / (bandwidth * Math.sqrt(2 * Math.PI));
+                }
+                return density / n;
+            }
+
+            // 4. Generate candidate points for probability evaluation
+            const candidates = [];
+            // Include bin centers
+            bins.forEach(b => candidates.push(b.center));
+            // Include values near recent submissions
+            const recent = values.slice(-8);
+            recent.forEach(v => {
+                for (let offset = -0.5; offset <= 0.5; offset += 0.1) {
+                    candidates.push(v + offset * stdDev);
+                }
+            });
+            // Include values from ARIMA-like extrapolation
+            if (n >= 3) {
+                const diffs = [];
+                for (let i = 1; i < n; i++) diffs.push(values[i] - values[i - 1]);
+                const avgDiff = diffs.reduce((s, d) => s + d, 0) / diffs.length;
+                const lastVal = values[n - 1];
+                candidates.push(lastVal + avgDiff);
+                candidates.push(lastVal + avgDiff * 0.5);
+                candidates.push(lastVal + avgDiff * 1.5);
+            }
+            // Include values from trend analysis
+            if (n >= 5) {
+                const xVals = Array.from({ length: n }, (_, i) => i);
+                const sumX = xVals.reduce((a, b) => a + b, 0);
+                const sumY = values.reduce((a, b) => a + b, 0);
+                const sumXY = xVals.reduce((s, x, i) => s + x * values[i], 0);
+                const sumX2 = xVals.reduce((s, x) => s + x * x, 0);
+                const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                const intercept = (sumY - slope * sumX) / n;
+                candidates.push(intercept + slope * n);
+                candidates.push(intercept + slope * (n + 1));
+            }
+
+            // 5. Evaluate KDE probability for each candidate
+            const candidateProbs = candidates.map(x => ({
+                value: x,
+                density: kdeDensity(x),
+            }));
+
+            // 6. Select the candidate with highest probability density
+            candidateProbs.sort((a, b) => b.density - a.density);
+            let bestCandidate = candidateProbs[0];
+
+            // 7. Apply constraints
+            let upperBound = Infinity;
+            if (!infinityCheckbox.checked) {
+                const lim = parseInt(limitInput.value);
+                if (lim && lim >= 1) upperBound = lim;
+            }
+            let predictedValue = Math.max(1.00, bestCandidate.value);
+            if (upperBound !== Infinity) predictedValue = Math.min(upperBound, predictedValue);
+            predictedValue = Math.round(predictedValue * 100) / 100;
+            if (predictedValue < 1.00) predictedValue = 1.01; // Never default to exactly 1.00
+
+            // 8. Calculate probability score (normalized)
+            const maxDensity = candidateProbs[0].density;
+            const probabilityScore = maxDensity > 0 ? Math.min(99, Math.round((maxDensity / (maxDensity + 0.1)) * 100)) :
+            50;
+
+            // 9. Confidence based on distribution characteristics
+            const entropy = -bins.reduce((s, b) => {
+                const p = b.count / n;
+                return s + (p > 0 ? p * Math.log2(p) : 0);
+            }, 0);
+            const maxEntropy = Math.log2(binCount);
+            const normalizedEntropy = entropy / maxEntropy;
+            const confidence = Math.round((1 - normalizedEntropy) * 85 + 10);
+
+            return {
+                prediction: predictedValue,
+                confidence: Math.min(95, Math.max(10, confidence)),
+                probability: probabilityScore,
+                entropy: normalizedEntropy.toFixed(3),
+            };
+        }
+
+        // ─────────────────── UI UPDATES ───────────────────
+        function updatePrediction() {
+            const total = history.length;
+            if (total < 16) {
+                predictionValue.textContent = 'Need 16 submissions';
+                predictionValue.classList.add('no-prediction');
+                progressText.style.display = 'block';
+                progressCount.textContent = total;
+                confidenceRow.style.display = 'none';
+                probabilityBadge.style.display = 'none';
+                sparklineContainer.style.display = 'none';
+            } else {
+                const result = calculatePrediction();
+                if (result.prediction !== null) {
+                    predictionValue.textContent = fmt(result.prediction);
+                    predictionValue.classList.remove('no-prediction');
+                    progressText.style.display = 'none';
+                    confidenceRow.style.display = 'flex';
+                    probabilityBadge.style.display = 'inline-block';
+                    probValue.textContent = result.probability;
+                    confidenceBar.style.width = result.confidence + '%';
+                    confidencePercent.textContent = result.confidence + '%';
+                    if (result.confidence >= 65) confidenceBar.style.background = 'var(--accent-green)';
+                    else if (result.confidence >= 35) confidenceBar.style.background = 'var(--accent-gold)';
+                    else confidenceBar.style.background = 'var(--accent-magenta)';
+                    sparklineContainer.style.display = 'flex';
+                    updateSparkline();
+                }
+            }
+        }
+
+        function updateSparkline() {
+            const total = history.length;
+            if (total < 2) { sparklineContainer.style.display = 'none'; return; }
+            sparklineContainer.style.display = 'flex';
+            const points = Math.min(32, total);
+            const values = history.slice(-points).map(h => h.value);
+            const min = Math.min(...values),
+                max = Math.max(...values),
+                range = max - min || 1;
+            const w = 280,
+                h = 50,
+                px = 8,
+                py = 8,
+                pw = w - px * 2,
+                ph = h - py * 2;
+            const pts = values.map((v, i) => ({
+                x: px + (i / (values.length - 1)) * pw,
+                y: py + ph - ((v - min) / range) * ph,
+            }));
+            let d = '';
+            pts.forEach((p, i) => d += (i ? 'L' : 'M') + ` ${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+            const last = pts[pts.length - 1];
+            sparklineSvg.innerHTML = `
+            <defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#00d4ff" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#9b5fff" stop-opacity="0.9"/>
+            </linearGradient></defs>
+            <path d="${d}" class="sparkline-line" stroke="url(#sg)"/>
+            <circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="3.5" class="sparkline-dot"/>`;
+        }
+
+        function updateStats() {
+            const total = history.length;
+            statCount.textContent = total;
+            if (!total) {
+                statMedian.textContent = '—';
+                statMode.textContent = '—';
+                statStd.textContent = '—';
+                statEntropy.textContent = '—';
+                return;
+            }
+            const values = history.map(h => h.value);
+            const sorted = [...values].sort((a, b) => a - b);
+            const median = total % 2 === 1 ? sorted[Math.floor(total / 2)] : (sorted[total / 2 - 1] + sorted[total / 2]) /
+            2;
+            statMedian.textContent = fmt(median);
+
+            // Mode
+            const freq = {};
+            values.forEach(v => freq[fmt(v)] = (freq[fmt(v)] || 0) + 1);
+            const modeKey = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
+            statMode.textContent = modeKey;
+
+            // StdDev
+            const mean = values.reduce((s, v) => s + v, 0) / total;
+            const stdDev = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / total);
+            statStd.textContent = fmt(stdDev);
+
+            // Entropy
+            const binCount = Math.min(15, Math.max(4, Math.floor(Math.sqrt(total))));
+            const minV = sorted[0],
+                maxV = sorted[total - 1],
+                rng = maxV - minV || 1;
+            const bw = rng / binCount;
+            const bins = Array(binCount).fill(0);
+            values.forEach(v => {
+                let idx = Math.min(binCount - 1, Math.floor((v - minV) / bw));
+                if (idx < 0) idx = 0;
+                bins[idx]++;
+            });
+            const entropy = -bins.reduce((s, c) => { const p = c / total; return s + (p > 0 ? p * Math.log2(p) :
+                0); }, 0);
+            statEntropy.textContent = entropy.toFixed(2);
+        }
+
+        function renderHistory() {
+            const range = getVisibleRange();
+            historyList.innerHTML = range.items.length ? '' :
+                '<li style="text-align:center;color:var(--text-muted);padding:30px 0;">No submissions yet.</li>';
+            range.items.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'history-item' + (isEditMode ? ' editable' : '');
+                li.dataset.globalIndex = item.globalIndex;
+                li.innerHTML = `
+              <span class="history-index">#${item.globalIndex+1}</span>
+              <span class="history-value">${fmt(item.value)}</span>
+              <span class="history-time">${item.timestamp}</span>
+              <span class="history-actions">
+                <button class="btn-inline-edit" data-action="edit" data-global-index="${item.globalIndex}">✏️</button>
+                <button class="btn-inline-delete" data-action="delete" data-global-index="${item.globalIndex}">✕</button>
+              </span>`;
+                if (isEditMode) {
+                    li.addEventListener('click', function(e) {
+                        if (e.target.closest('[data-action]')) return;
+                        document.querySelectorAll('.history-item.selected-for-edit').forEach(el => el
+                            .classList.remove('selected-for-edit'));
+                        li.classList.add('selected-for-edit');
+                        editTargetGlobalIndex = item.globalIndex;
+                    });
+                }
+                li.querySelector('[data-action="edit"]').addEventListener('click', e => { e.stopPropagation();
+                    openEditModal(item.globalIndex); });
+                li.querySelector('[data-action="delete"]').addEventListener('click', e => { e.stopPropagation();
+                    deleteSingle(item.globalIndex); });
+                historyList.appendChild(li);
+            });
+            historyRangeLabel.textContent = isViewing32 ? `Showing latest ${Math.min(32,history.length)}` :
+                `Showing latest ${Math.min(10,history.length)}`;
+            viewToggleBtn.textContent = isViewing32 ? '🔍 View Latest 10' : '🔍 View Latest 32';
+            viewToggleBtn.classList.toggle('active', isViewing32);
+            editToggleBtn.classList.toggle('active', isEditMode);
+            editToggleBtn.textContent = isEditMode ? '✏️ Exit Edit' : '✏️ Edit Mode';
+        }
+
+        function updateAll() { updateStats();
+            updatePrediction();
+            renderHistory();
+            updateLimitStatus(); }
+
+        function updateLimitStatus() {
+            if (infinityCheckbox.checked) { limitStatus.textContent = 'No upper bound';
+                submitBtn.disabled = false; } else {
+                const lim = parseInt(limitInput.value) || 0;
+                const cur = history.length;
+                if (lim > 0 && cur >= lim) { limitStatus.textContent = `⚠️ Limit reached (${cur}/${lim})`;
+                    submitBtn.disabled = true; } else if (lim > 0) { limitStatus.textContent =
+                    `${cur}/${lim} used`;
+                    submitBtn.disabled = false; } else { limitStatus.textContent = 'Set a valid limit';
+                    submitBtn.disabled = false; }
+            }
+        }
+
+        // ─────────────────── ACTIONS ───────────────────
+        function submitNumber() {
+            const raw = numberInput.value.trim();
+            if (!raw) { showToast('Enter a number', 'warning');
+                numberInput.focus(); return; }
+            let num = parseFloat(raw);
+            if (isNaN(num)) { showToast('Invalid number', 'danger'); return; }
+            if (num < 1.00) { showToast('Minimum 1.00', 'warning'); return; }
+            num = Math.round(num * 100) / 100;
+            if (num < 1.00) num = 1.01;
+            if (!infinityCheckbox.checked) {
+                const lim = parseInt(limitInput.value) || 0;
+                if (lim > 0 && history.length >= lim) { showToast('Limit reached!', 'danger'); return; }
+            }
+            history.push({ value: num, timestamp: nowTime() });
+            if (history.length > 88) {
+                history.splice(0, 32);
+                showToast('🧹 Auto‑cleaned 32 oldest entries', 'info');
+            }
+            numberInput.value = '';
+            numberInput.focus();
+            updateAll();
+            showToast(`✅ Submitted: ${fmt(num)}`, 'success');
+            historyList.scrollTop = 0;
+        }
+
+        function openEditModal(idx) { editTargetGlobalIndex = idx;
+            editModalIndex.textContent = '#' + (idx + 1);
+            editModalInput.value = fmt(history[idx].value);
+            editModal.style.display = 'flex';
+            editModalInput.focus();
+            editModalInput.select(); }
+
+        function saveEdit() {
+            if (editTargetGlobalIndex === null) return;
+            const raw = editModalInput.value.trim();
+            if (!raw) { showToast('Enter a value', 'warning'); return; }
+            let num = parseFloat(raw);
+            if (isNaN(num) || num < 1.00) { showToast('Min 1.00', 'warning'); return; }
+            num = Math.round(num * 100) / 100;
+            if (num < 1.00) num = 1.01;
+            const old = history[editTargetGlobalIndex].value;
+            history[editTargetGlobalIndex].value = num;
+            history[editTargetGlobalIndex].timestamp = nowTime() + ' (edited)';
+            closeEditModal();
+            updateAll();
+            showToast(`✏️ Edited #${editTargetGlobalIndex+1}: ${fmt(old)} → ${fmt(num)}`, 'success');
+        }
+
+        function closeEditModal() { editModal.style.display = 'none';
+            editTargetGlobalIndex = null;
+            editModalInput.value = ''; }
+
+        function deleteSingle(idx) { const val = history[idx].value;
+            history.splice(idx, 1);
+            updateAll();
+            showToast(`🗑 Deleted #${idx+1}: ${fmt(val)}`, 'warning'); }
+
+        function clearAll() { confirmCount.textContent = history.length + ' submission' + (history.length !== 1 ? 's' : '');
+            confirmModal.style.display = 'flex'; }
+
+        function confirmClear() { history = [];
+            editTargetGlobalIndex = null;
+            isEditMode = false;
+            confirmModal.style.display = 'none';
+            updateAll();
+            showToast('🗑 History cleared', 'danger'); }
+
+        function cancelClear() { confirmModal.style.display = 'none'; }
+
+        function toggleView() { isViewing32 = !isViewing32;
+            updateAll();
+            historyList.scrollTop = 0; }
+
+        function toggleEditMode() { isEditMode = !isEditMode;
+            editTargetGlobalIndex = null;
+            document.querySelectorAll('.history-item.selected-for-edit').forEach(e => e.classList.remove(
+                'selected-for-edit'));
+            updateAll(); if (isEditMode) showToast('✏️ Edit mode active', 'info'); }
+
+        // ─────────────────── EVENT LISTENERS ───────────────────
+        submitBtn.addEventListener('click', submitNumber);
+        numberInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault();
+                submitNumber(); } });
+        infinityCheckbox.addEventListener('change', () => { limitInput.disabled = infinityCheckbox.checked; if (
+                infinityCheckbox.checked) { limitInput.value = ''; }
+            updateLimitStatus(); });
+        limitInput.addEventListener('input', updateLimitStatus);
+        viewToggleBtn.addEventListener('click', toggleView);
+        editToggleBtn.addEventListener('click', toggleEditMode);
+        clearBtn.addEventListener('click', clearAll);
+        editModalSave.addEventListener('click', saveEdit);
+        editModalCancel.addEventListener('click', closeEditModal);
+        editModal.addEventListener('click', e => { if (e.target === editModal) closeEditModal(); });
+        editModalInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault();
+                saveEdit(); } else if (e.key === 'Escape') closeEditModal(); });
+        confirmYes.addEventListener('click', confirmClear);
+        confirmNo.addEventListener('click', cancelClear);
+        confirmModal.addEventListener('click', e => { if (e.target === confirmModal) cancelClear(); });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                if (editModal.style.display === 'flex') closeEditModal();
+                if (confirmModal.style.display === 'flex') cancelClear();
+                if (isEditMode) toggleEditMode();
+            }
+            if (e.ctrlKey && e.key === 'z' && !isEditMode && history.length) {
+                e.preventDefault();
+                const removed = history.pop();
+                updateAll();
+                showToast(`↩ Undo: removed ${fmt(removed.value)}`, 'info');
+            }
+        });
+
+        // ─────────────────── INIT ───────────────────
+        limitInput.disabled = true;
+        updateAll();
+        numberInput.focus();
+    })();
+</script>
+</body>
+</html>
